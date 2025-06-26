@@ -1,2 +1,3 @@
-# Decoupage
-# Decoupage
+# Découpage
+
+Mise en avant du retrieval : RAG
