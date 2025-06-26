@@ -1,18 +1,33 @@
 import streamlit as st
-from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
-from langchain.llms import HuggingFaceHub
-from langchain.docstore.document import Document
+import pandas as pd
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+import os
 
-# 📌 Chargement de l'embedding et du vecteurstore
-MODEL_NAME_EMBEDDER = "BAAI/bge-m3"
-embedder = HuggingFaceEmbeddings(model_name=MODEL_NAME_EMBEDDER)
 
-vectorstore = Chroma(
-    embedding_function=embedder,
-    persist_directory="./chroma_db"
-)
+# Chargement des données (optionnel si utilisé uniquement pour les dossiers)
+@st.cache_data
+def load_data():
+    df = pd.read_parquet("/home/onyxia/work/Decoupage/data/echantillon_1000_hs_2024_TOC.parquet")
+    df = df.rename(columns={"numdossier_new":"numdossier"})
+    df= df.set_index("numdossier")
+    return df
+
+df = load_data()
+liste_dossiers = sorted(df.index.unique().tolist())
+
+# Chargement du vector store
+@st.cache_resource
+def load_vectorstore():
+    embedder = HuggingFaceEmbeddings(model_name="BAAI/bge-m3")
+    vectorstore = Chroma(embedding_function=embedder ,persist_directory="./chroma_db")
+    return vectorstore
+
+
+vectorstore = load_vectorstore()
+
+
 
 st.set_page_config(page_title="📚 RAG Visualizer", layout="wide")
 st.title("🔍 Visualisation des chunks sélectionnés")
@@ -21,14 +36,12 @@ st.title("🔍 Visualisation des chunks sélectionnés")
 # Si pas possible via vectorstore.get(), tu peux préextraire les num_dossier
 # et les stocker dans un fichier .json ou .csv pour charger ici
 try:
-    # Hack pour récupérer des dossiers (si accessible)
-    all_docs = vectorstore.get()["documents"]
-    all_numdossiers = sorted(set([d.metadata["num_dossier"] for d in all_docs]))
+    all_numdossiers = liste_dossiers
 except Exception:
     st.error("Impossible de lire les numéros de dossier. Fournir un fichier externe.")
     all_numdossiers = []
 
-# 🎛️ Interface utilisateur
+# Interface utilisateur
 num_dossier = st.selectbox("Numéro de dossier :", all_numdossiers)
 k = st.slider("Nombre de chunks à afficher (k)", min_value=1, max_value=20, value=5)
 question = st.text_input("❓ Poser une question")
@@ -37,23 +50,19 @@ question = st.text_input("❓ Poser une question")
 if st.button("🔎 Voir les chunks sélectionnés") and question and num_dossier:
 
     retriever = vectorstore.as_retriever(
-        search_kwargs={"k": k, "filter": {"num_dossier": num_dossier}}
+        search_kwargs={"k": k, "filter": {"numdossier": num_dossier}}
     )
-    docs: list[Document] = retriever.get_relevant_documents(question)
+    docs: list[Document] = retriever.invoke(question)
 
     st.subheader("📄 Chunks récupérés (contexte utilisé)")
 
     for i, doc in enumerate(docs):
         st.markdown(f"### 🔹 Chunk {i+1}")
-        st.markdown(f"`ID:` {doc.metadata.get('id', 'N/A')}")
-        st.markdown(f"`NumDossier:` {doc.metadata.get('num_dossier', 'N/A')}")
+        st.markdown(f"`ID:` {doc.metadata['id']}")
+        st.markdown(f"`NumDossier:` {num_dossier}")
+        
         st.markdown("---")
         st.write(doc.page_content)
         st.markdown("---")
 
-    if st.checkbox("🧠 Générer une réponse à partir de ces chunks ?"):
-        llm = HuggingFaceHub(repo_id="google/flan-t5-large")
-        qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
-        response = qa_chain.run(question)
-        st.success("Réponse générée :")
-        st.write(response)
+
