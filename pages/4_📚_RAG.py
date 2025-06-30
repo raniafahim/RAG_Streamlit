@@ -4,8 +4,19 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
-st.set_page_config(page_title="📚 RAG Visualizer", layout="wide")
+st.set_page_config(page_title="RAG Visualizer", layout="wide", page_icon="📚")
 st.title("📚 RAG Visualizer")
+
+st.write(
+    """ Cette page permet de visualiser un processus RAG (Retrieval Augmented Generation) sur un échantillon aléatoire de 1000 articles. 
+    Le principe de la méthode RAG repose plusieurs principes : 
+    1. Découper des accords en articles. 
+    2. Poer une la question de notre choix. 
+    2. La recherche documentaire dans ces articles selon la question et le paramètre k choisis. 
+    3. La génération augmentée par un LLM??
+    
+    """
+)
 
 
 # Initialisation de l'état
@@ -71,7 +82,7 @@ k = st.slider("**Nombre de chunks à afficher (k)**", min_value=1, max_value=20,
 question = st.text_input("**❓ Poser une question**")
 
 # Bouton d'action
-if st.button("**🔎 Voir les chunks sélectionnés**") and question and num_dossier:
+if st.button("**🔄 Lancer le Retrieval**") and question and num_dossier:
     retriever = vectorstore.as_retriever(
         search_kwargs={"k": k, "filter": {"numdossier": num_dossier}}
     )
