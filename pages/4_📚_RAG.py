@@ -71,7 +71,7 @@ liste_dossiers = sorted(df.index.unique().tolist())
 @st.cache_resource
 def load_vectorstore():
     embedder = HuggingFaceEmbeddings(model_name="BAAI/bge-m3")
-    vectorstore = Chroma(embedding_function=embedder, persist_directory="./chroma_db")
+    vectorstore = Chroma(embedding_function=embedder, persist_directory="./chroma_db_article")
     return vectorstore
 
 vectorstore = load_vectorstore()
