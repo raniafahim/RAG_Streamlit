@@ -20,8 +20,6 @@ st.markdown(
     - Nous réutilisons les **sommaires extraits d'une étude précédente**, qui ont permis de construire un ensemble de titres représentatifs.  
     - Ces sommaires servent ici à **segmenter le texte original** en parties correspondant aux articles ou sections du document.  
     - Pour garantir la cohérence, lorsqu'un titre est suivi immédiatement d'un sous-titre, ou lorsque deux segments extraits sont trop courts (moins de 100 tokens), nous les **concaténons** afin d'éviter des fragments trop petits et peu significatifs.
-
-    Cette méthode offre un bon compromis entre granularité et cohérence textuelle, en fournissant des "chunks" exploitables pour des analyses ultérieures.
     """
 )
 

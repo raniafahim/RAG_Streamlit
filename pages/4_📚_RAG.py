@@ -17,8 +17,6 @@ st.write(
     
     """
 )
-
-
 # Initialisation de l'état
 if "step" not in st.session_state:
     st.session_state.step = 1
@@ -33,10 +31,8 @@ highlight_style = "background-color: #FFFE94; border-left: 6px solid #FFFE94; pa
 def display_chunk(doc: Document, highlight=False, preview_words=30):
     full_content = doc.page_content
     preview = " ".join(full_content.split()[:preview_words]) + "..."
-
     chunk_id = doc.metadata.get("id", "N/A")
     header = f"**✔️ Chunk sélectionné (ID: {chunk_id})**" if highlight else f"Chunk (ID: {chunk_id})"
-
     with st.expander(header):
         if highlight:
             st.markdown(
@@ -76,10 +72,12 @@ def load_vectorstore():
 
 vectorstore = load_vectorstore()
 
+
 # Interface utilisateur
 num_dossier = st.selectbox("**Numéro de dossier :**", liste_dossiers)
 k = st.slider("**Nombre de chunks à afficher (k)**", min_value=1, max_value=20, value=5)
 question = st.text_input("**❓ Poser une question**")
+
 
 # Bouton d'action
 if st.button("**🔄 Lancer le Retrieval**") and question and num_dossier:
@@ -96,34 +94,30 @@ if st.button("**🔄 Lancer le Retrieval**") and question and num_dossier:
         Document(page_content=content, metadata=meta)
         for content, meta in sorted(
             zip(raw["documents"], raw["metadatas"]),
-            key=lambda x: x[1].get("chunk_id", x[1].get("id", 0))  # tri par chunk_id si dispo, sinon par id
+            key=lambda x: x[1].get("id")
         )
     ]
     # Mémoriser les résultats
     st.session_state.docs = all_docs
-    st.session_state.selected_chunks = docs  # ici on suppose que les "chunks sélectionnés" = ceux récupérés
-
+    st.session_state.selected_chunks = docs  
     st.success(f"{len(docs)} chunks récupérés pour le dossier {num_dossier}")
 
-# Affichage dynamique (si des chunks ont été chargés)
-if st.session_state.docs:
-    placeholder = st.empty()
-    with placeholder.container():
-        if st.session_state.step == 1:
-            st.subheader(f"**📄 Découpage de l'accord {num_dossier}**")
-            for doc in st.session_state.docs:
-                display_chunk(doc)
+    # Affichage dynamique (si des chunks ont été chargés)
+    if st.session_state.docs:
+        placeholder = st.empty()
+        with placeholder.container():
+            if st.session_state.step == 1:
+                st.subheader(f"**📄 Découpage de l'accord {num_dossier}**")
+                for doc in st.session_state.docs:
+                    display_chunk(doc)
 
-        elif st.session_state.step == 2:
-            st.subheader("**🔎 Retrieval : sélection des paragraphes**")
-            selected_ids = {doc.metadata["id"] for doc in st.session_state.selected_chunks}
-            for doc in st.session_state.docs:
-                display_chunk(doc, highlight=(doc.metadata["id"] in selected_ids))
+            elif st.session_state.step == 2:
+                st.subheader("**🔎 Retrieval : sélection des paragraphes**")
+                selected_ids = {doc.metadata["id"] for doc in st.session_state.selected_chunks}
+                for doc in st.session_state.docs:
+                    display_chunk(doc, highlight=(doc.metadata["id"] in selected_ids))
 
-        elif st.session_state.step == 3:
-            st.subheader("**✅ Contexte fourni au LLM**")
-            for doc in st.session_state.selected_chunks:
-                display_chunk(doc, highlight=True)
-
-
-
+            elif st.session_state.step == 3:
+                st.subheader("**✅ Contexte fourni au LLM**")
+                for doc in st.session_state.selected_chunks:
+                    display_chunk(doc, highlight=True)
