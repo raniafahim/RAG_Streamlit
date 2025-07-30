@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import re
+import unidecode
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -7,43 +9,101 @@ from langchain_core.documents import Document
 st.set_page_config(page_title="RAG Visualizer", layout="wide", page_icon="📚")
 st.title("📚 RAG Visualizer")
 
-st.write(
-    """ Cette page permet de visualiser un processus RAG (Retrieval Augmented Generation) sur un échantillon aléatoire de 1000 articles. 
-    Le principe de la méthode RAG repose plusieurs principes : 
-    1. Découper des accords en articles. 
-    2. Poer une la question de notre choix. 
-    2. La recherche documentaire dans ces articles selon la question et le paramètre k choisis. 
-    3. La génération augmentée par un LLM??
-    
+st.markdown(
+    """
+    Cette application vous permet de visualiser un processus de Retrieval-Augmented Generation (RAG) sur un corpus d'accords collectifs.
+
+    **Étapes du processus :**  
+    1. 📄 Affichage du découpage de l’accord  
+    2. 🔎 Affichage des chunks sélectionnés par la recherche  
+    3. ✅ Contexte final envoyé au LLM  
     """
 )
-# Initialisation de l'état
+
+# ------------------------- Caching des données -------------------------
+
+@st.cache_data
+def load_data():
+    df = pd.read_parquet("/home/onyxia/work/Decoupage/data/echantillon_1000_hs_2024_TOC.parquet")
+    df = df.rename(columns={"numdossier_new": "numdossier"})
+    df = df.set_index("numdossier")
+    return df
+
+@st.cache_resource
+def load_vectorstore():
+    embedder = HuggingFaceEmbeddings(model_name="BAAI/bge-m3")
+    vectorstore = Chroma(embedding_function=embedder, persist_directory="./chroma_db_article")
+    return vectorstore
+
+
+# ------------------------- État de session -------------------------
+
 if "step" not in st.session_state:
     st.session_state.step = 1
 if "docs" not in st.session_state:
     st.session_state.docs = []
 if "selected_chunks" not in st.session_state:
     st.session_state.selected_chunks = []
+if "last_question" not in st.session_state:
+    st.session_state.last_question = ""
+if "last_dossier" not in st.session_state:
+    st.session_state.last_dossier = None
 
-# Style
 highlight_style = "background-color: #FFFE94; border-left: 6px solid #FFFE94; padding: 10px; margin-bottom: 20px; border-radius: 10px;"
 
 def display_chunk(doc: Document, highlight=False, preview_words=30):
     full_content = doc.page_content
-    preview = " ".join(full_content.split()[:preview_words]) + "..."
-    chunk_id = doc.metadata.get("id", "N/A")
-    header = f"**✔️ Chunk sélectionné (ID: {chunk_id})**" if highlight else f"Chunk (ID: {chunk_id})"
+    titre = doc.metadata.get("title", "Sans titre")
+    header = f"**✔️ Chunk sélectionné : {titre}**" if highlight else f"{titre}"
     with st.expander(header):
         if highlight:
-            st.markdown(
-                f"<div style='{highlight_style}'>{full_content}</div>",
-                unsafe_allow_html=True
-            )
+            st.markdown(f"<div style='{highlight_style}'>{full_content}</div>", unsafe_allow_html=True)
         else:
-            st.markdown(preview)
             st.markdown(full_content)
 
-# Navigation
+def extract_index(metadata_id):
+    return int(metadata_id.split("_")[1])
+# ------------------------- Interface utilisateur -------------------------
+
+df = load_data()
+vectorstore = load_vectorstore()
+liste_dossiers = sorted(df.index.unique().tolist())
+
+num_dossier = st.selectbox("**Numéro de dossier :**", liste_dossiers)
+k = st.slider("**Nombre de chunks à afficher (k)**", min_value=1, max_value=20, value=5)
+question = st.text_input("**❓ Poser une question**")
+
+
+# ------------------------- Retrieval automatique -------------------------
+
+if st.button("**🔄 Lancer le Retrieval**") and question and num_dossier:
+    st.session_state.step = 1
+    retriever = vectorstore.as_retriever(
+        search_kwargs={"k": k, "filter": {"numdossier": num_dossier}}
+    )
+    selected_chunks = retriever.invoke(question)
+
+    raw = vectorstore._collection.get(
+        where={"numdossier": num_dossier},
+        include=["documents", "metadatas"]
+    )
+
+    all_docs = [
+        Document(page_content=content, metadata=meta)
+        for content, meta in sorted(
+            zip(raw["documents"], raw["metadatas"]),
+            key=lambda x: extract_index(x[1]["id"])
+        )
+    ]
+
+    st.session_state.docs = all_docs
+    st.session_state.selected_chunks = selected_chunks
+    st.session_state.last_question = question
+    st.session_state.last_dossier = num_dossier
+    st.success(f"{len(selected_chunks)} chunks récupérés pour le dossier {num_dossier}")
+
+# ------------------------- Navigation étapes -------------------------
+
 col1, col2, col3 = st.columns([1, 2, 1])
 with col1:
     if st.button("◀ Précédent", use_container_width=True) and st.session_state.step > 1:
@@ -52,72 +112,21 @@ with col3:
     if st.button("▶ Suivant", use_container_width=True) and st.session_state.step < 3:
         st.session_state.step += 1
 
-# Chargement des données
-@st.cache_data
-def load_data():
-    df = pd.read_parquet("/home/onyxia/work/Decoupage/data/echantillon_1000_hs_2024_TOC.parquet")
-    df = df.rename(columns={"numdossier_new": "numdossier"})
-    df = df.set_index("numdossier")
-    return df
+# ------------------------- Affichage des étapes -------------------------
 
-df = load_data()
-liste_dossiers = sorted(df.index.unique().tolist())
+if st.session_state.docs:
+    if st.session_state.step == 1:
+        st.subheader(f"📄 Accord n°{num_dossier} découpé ")
+        for doc in st.session_state.docs:
+            display_chunk(doc)
 
-# Chargement du vectorstore
-@st.cache_resource
-def load_vectorstore():
-    embedder = HuggingFaceEmbeddings(model_name="BAAI/bge-m3")
-    vectorstore = Chroma(embedding_function=embedder, persist_directory="./chroma_db_article")
-    return vectorstore
+    elif st.session_state.step == 2:
+        st.subheader("🔍 Chunks sélectionnés par le retrieval")
+        selected_ids = {doc.metadata["id"] for doc in st.session_state.selected_chunks}
+        for doc in st.session_state.docs:
+            display_chunk(doc, highlight=(doc.metadata["id"] in selected_ids))
 
-vectorstore = load_vectorstore()
-
-
-# Interface utilisateur
-num_dossier = st.selectbox("**Numéro de dossier :**", liste_dossiers)
-k = st.slider("**Nombre de chunks à afficher (k)**", min_value=1, max_value=20, value=5)
-question = st.text_input("**❓ Poser une question**")
-
-
-# Bouton d'action
-if st.button("**🔄 Lancer le Retrieval**") and question and num_dossier:
-    retriever = vectorstore.as_retriever(
-        search_kwargs={"k": k, "filter": {"numdossier": num_dossier}}
-    )
-    docs: list[Document] = retriever.invoke(question)
-    raw = vectorstore._collection.get(
-        where={"numdossier": num_dossier},
-        include=["documents", "metadatas"]
-    )
-    
-    all_docs = [
-        Document(page_content=content, metadata=meta)
-        for content, meta in sorted(
-            zip(raw["documents"], raw["metadatas"]),
-            key=lambda x: x[1].get("id")
-        )
-    ]
-    # Mémoriser les résultats
-    st.session_state.docs = all_docs
-    st.session_state.selected_chunks = docs  
-    st.success(f"{len(docs)} chunks récupérés pour le dossier {num_dossier}")
-
-    # Affichage dynamique (si des chunks ont été chargés)
-    if st.session_state.docs:
-        placeholder = st.empty()
-        with placeholder.container():
-            if st.session_state.step == 1:
-                st.subheader(f"**📄 Découpage de l'accord {num_dossier}**")
-                for doc in st.session_state.docs:
-                    display_chunk(doc)
-
-            elif st.session_state.step == 2:
-                st.subheader("**🔎 Retrieval : sélection des paragraphes**")
-                selected_ids = {doc.metadata["id"] for doc in st.session_state.selected_chunks}
-                for doc in st.session_state.docs:
-                    display_chunk(doc, highlight=(doc.metadata["id"] in selected_ids))
-
-            elif st.session_state.step == 3:
-                st.subheader("**✅ Contexte fourni au LLM**")
-                for doc in st.session_state.selected_chunks:
-                    display_chunk(doc, highlight=True)
+    elif st.session_state.step == 3:
+        st.subheader("✅ Contexte envoyé au LLM")
+        for doc in st.session_state.selected_chunks:
+            display_chunk(doc, highlight=True)
