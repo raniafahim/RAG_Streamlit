@@ -50,16 +50,16 @@ if "last_dossier" not in st.session_state:
     st.session_state.last_dossier = None
 
 highlight_style = "background-color: #FFFE94; border-left: 6px solid #FFFE94; padding: 10px; margin-bottom: 20px; border-radius: 10px;"
-
 def display_chunk(doc: Document, highlight=False, preview_words=30):
     full_content = doc.page_content
-    titre = doc.metadata.get("title", "Sans titre")
-    header = f"**✔️ Chunk sélectionné : {titre}**" if highlight else f"{titre}"
+    titre = doc.metadata.get("title", "Sans titre").strip()  # <- nettoyage ici
+    header = f"**✔️Chunk sélectionné : {titre}**" if highlight else f"{titre}"
     with st.expander(header):
         if highlight:
             st.markdown(f"<div style='{highlight_style}'>{full_content}</div>", unsafe_allow_html=True)
         else:
             st.markdown(full_content)
+
 
 def extract_index(metadata_id):
     return int(metadata_id.split("_")[1])
