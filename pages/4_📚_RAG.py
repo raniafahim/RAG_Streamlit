@@ -11,8 +11,8 @@ st.title("📚 RAG Visualizer")
 
 st.markdown(
     """
-    Cette application vous permet de visualiser un processus de Retrieval-Augmented Generation (RAG) sur un corpus d'accords collectifs.
-
+    Cette page permet de visualiser un processus de Retrieval-Augmented Generation (RAG) sur un corpus de 1000 accords portant sur les "Heures supplémentaires"
+.
     **Étapes du processus :**  
     1. 📄 Affichage du découpage de l’accord  
     2. 🔎 Affichage des chunks sélectionnés par la recherche  
