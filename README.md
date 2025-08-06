@@ -9,7 +9,7 @@ Ce projet implémente une approche **RAG (Retrieval-Augmented Generation)**, com
 
 Avant toute exécution, **vous devez manuellement télécharger la base `chroma_db_article`**, utilisée pour l’indexation vectorielle.
 
-📦 **Cette base n’est pas incluse dans le dépôt** (trop volumineuse pour un `git push`) — elle doit être ajoutée manuellement.
+📦 **Cette base n’est pas incluse dans le dépôt** (trop volumineuse pour un `git push`) — elle doit être ajoutée manuellement. Pour cela, il faut lancer le notebook 'creacte_vectorestore_article' du dépôt RAG. 
 
 🗂️ **Structure attendue du projet :**
 
