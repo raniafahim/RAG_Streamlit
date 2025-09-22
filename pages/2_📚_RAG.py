@@ -24,7 +24,7 @@ st.markdown(
 
 @st.cache_data
 def load_data():
-    df = pd.read_parquet("/home/onyxia/work/Decoupage/data/echantillon_1000_hs_2024_TOC.parquet")
+    df = pd.read_parquet("/home/onyxia/work/RAG_Streamlit/data/echantillon_1000_hs_2024_TOC.parquet")
     df = df.rename(columns={"numdossier_new": "numdossier"})
     df = df.set_index("numdossier")
     return df
